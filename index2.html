@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Курсы валют — Алга</title>
+<style>
+  body {
+    font-family: "Segoe UI", Roboto, Arial, sans-serif;
+    background: #f2f4f7;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+  }
+  .card {
+    background: #0b6ee6;
+    color: white;
+    padding: 20px;
+    border-radius: 10px;
+    width: 340px;
+    text-align: center;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.25);
+  }
+  .top-select {
+    margin-bottom: 12px;
+  }
+  select {
+    border: none;
+    border-radius: 5px;
+    padding: 6px 10px;
+    font-size: 15px;
+  }
+  .rates {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    gap: 10px 12px;
+    justify-items: center;
+    align-items: center;
+  }
+  .box {
+    background: white;
+    color: #111;
+    padding: 6px 8px;
+    border-radius: 4px;
+    width: 90%;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .box:hover { background: #f6f6f6; }
+  .code {
+    font-weight: bold;
+  }
+  .gold {
+    color: #ffd800;
+    font-weight: bold;
+  }
+  .footer {
+    margin-top: 10px;
+    font-size: 13px;
+    opacity: 0.9;
+  }
+
+  /* модальное окно калькулятора */
+  .modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    display: none;
+    align-items: center;
+    justify-content: center;
+  }
+  .modal.active { display: flex; }
+  .modal-content {
+    background: white;
+    color: #111;
+    border-radius: 10px;
+    padding: 20px;
+    width: 280px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+    text-align: center;
+  }
+  .modal-content input {
+    width: 80%;
+    padding: 6px;
+    margin: 8px 0;
+    font-size: 16px;
+    text-align: center;
+  }
+  .close-btn {
+    background: #0b6ee6;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+</style>
+</head>
+<body>
+  <div class="card">
+    <h3>Курсы валют</h3>
+
+    <div class="top-select">
+      <label>Выбери точку:</label><br>
+      <select id="pointSelect">
+        <option value="Алга1">Алга 1</option>
+        <option value="Алга2">Алга 2</option>
+      </select>
+    </div>
+
+    <div id="date"></div>
+    <div class="rates" id="rates"></div>
+    <div class="footer">Нажми на курс для расчёта</div>
+  </div>
+
+  <div class="modal" id="calcModal">
+    <div class="modal-content">
+      <h4 id="calcTitle"></h4>
+      <input type="number" id="calcInput" placeholder="Сумма">
+      <div id="calcResult"></div>
+      <button class="close-btn" onclick="closeCalc()">Закрыть</button>
+    </div>
+  </div>
+
+<script>
+const apiUrl = 'https://script.google.com/macros/s/AKfycbzb67OJbpR-Qsa449HEafgeVkAQhVKA1ixiU8DOF9h6Rbw2y1l5WAT1S8XOQgb7w0Qw/exec';
+const codeMap = { 'Доллар':'USD', 'Евро':'EUR', 'Рубль':'RUB', 'Юань':'CNY', 'Кыргызский сом':'KGS' };
+let currentData = {};
+
+function loadRates(sheetName='Алга1') {
+  fetch(`${apiUrl}?sheet=${encodeURIComponent(sheetName)}`)
+    .then(r => r.json())
+    .then(json => {
+      currentData = json;
+      renderRates(json);
+    });
+}
+
+function renderRates(data) {
+  const container = document.getElementById('rates');
+  container.innerHTML = '';
+  const now = new Date();
+  const dateStr = now.toLocaleString('ru-RU', { day:'2-digit', month:'long', year:'numeric', hour:'2-digit', minute:'2-digit' });
+  document.getElementById('date').textContent = `на ${dateStr}`;
+  Object.keys(data).forEach(name => {
+    const val = data[name];
+    const buy = val.buy.toString().replace('.', ',');
+    const sell = val.sell.toString().replace('.', ',');
+    const code = codeMap[name] || name;
+    container.insertAdjacentHTML('beforeend', `
+      <div class="box" onclick="openCalc('${name}','buy')">${buy}</div>
+      <div class="code ${code==='GOLD'?'gold':''}">${code}</div>
+      <div class="box" onclick="openCalc('${name}','sell')">${sell}</div>
+    `);
+  });
+}
+
+function openCalc(currency, type) {
+  const modal = document.getElementById('calcModal');
+  const title = document.getElementById('calcTitle');
+  const input = document.getElementById('calcInput');
+  const result = document.getElementById('calcResult');
+  const rate = currentData[currency][type];
+  title.textContent = `${currency} (${type==='buy'?'Покупка':'Продажа'}) — курс ${rate}`;
+  input.value = '';
+  result.textContent = '';
+  modal.classList.add('active');
+
+  input.oninput = () => {
+    const val = parseFloat(input.value || 0);
+    const sum = (val * rate).toFixed(2);
+    result.textContent = `= ${sum} ₸`;
+  };
+}
+
+function closeCalc() {
+  document.getElementById('calcModal').classList.remove('active');
+}
+
+document.getElementById('pointSelect').addEventListener('change', e => {
+  loadRates(e.target.value);
+});
+
+loadRates(); // начальная загрузка
+</script>
+</body>
+</html>
